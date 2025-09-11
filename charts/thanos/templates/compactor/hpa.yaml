@@ -1,0 +1,45 @@
+{{- if and .Values.compactor.enabled .Values.compactor.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "thanos.compName" (list . "compactor") }}
+  labels:
+{{ include "thanos.labels" . | indent 4 }}
+  annotations:
+    {{- include "thanos.annotations" (dict "Values" .Values "component" "compactor") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: {{ .Values.compactor.autoscaling.targetKind | default "StatefulSet" }}
+    name: {{ include "thanos.compName" (list . "compactor") }}
+  minReplicas: {{ .Values.compactor.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.compactor.autoscaling.maxReplicas }}
+  metrics:
+  {{- $cpu := .Values.compactor.autoscaling.targetCPUUtilizationPercentage }}
+  {{- $mem := .Values.compactor.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- if or $cpu $mem }}
+    {{- if $cpu }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $cpu }}
+    {{- end }}
+    {{- if $mem }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $mem }}
+    {{- end }}
+  {{- else }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+  {{- end }}
+{{- end }}
